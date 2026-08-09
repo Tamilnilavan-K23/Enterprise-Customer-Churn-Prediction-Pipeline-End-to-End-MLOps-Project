@@ -11,6 +11,7 @@ import pandas as pd
 import mlflow
 import mlflow.sklearn
 from posthog import project_root
+from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     classification_report, precision_score, recall_score,
@@ -22,11 +23,21 @@ from xgboost import XGBClassifier
 # ESSENTIAL: Allows imports from src/ directory structure
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = PROJECT_ROOT / "src"
+
+sys.path.insert(0, str(SRC_DIR))
+
+MLRUNS_DIR = PROJECT_ROOT / "mlruns"
+
+
+
+
 # Local modules - Core pipeline components
 from src.data.load_data import load_data                    # Data loading with error handling
 from src.data.preprocess import preprocess_data            # Basic data cleaning
 from src.features.build_features import build_features     # Feature engineering (CRITICAL for model performance)
-from src.utils.validate_data import validate_telco_data    # Data quality validation
+from utils.validate_data import validate_telco_data    # Data quality validation
 
 def main(args):
     """
@@ -38,7 +49,9 @@ def main(args):
     # Configure MLflow to use local file-based tracking (not a tracking server)
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     mlruns_path = args.mlflow_uri or f"file://{project_root}/mlruns"  # Local file-based tracking
-    mlflow.set_tracking_uri(mlruns_path)
+    #mlflow.set_tracking_uri(mlruns_path)
+    mlflow.set_tracking_uri(MLRUNS_DIR.as_uri())
+    print("MLflow tracking URI:", mlflow.get_tracking_uri())
     mlflow.set_experiment(args.experiment)  # Creates experiment if doesn't exist
 
     # Start MLflow run - all subsequent logging will be tracked under this run
@@ -53,6 +66,11 @@ def main(args):
         print("🔄 Loading data...")
         df = load_data(args.input)  # Load raw CSV data with error handling
         print(f"✅ Data loaded: {df.shape[0]} rows, {df.shape[1]} columns")
+
+        df = preprocess_data(
+         df,
+         target_col=args.target
+        )
 
         # === CRITICAL: Data Quality Validation ===
         # This step is ESSENTIAL for production ML - validates data quality before training

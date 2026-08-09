@@ -4,10 +4,49 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+#create the enviriment
+
+py -3.11 -m venv .venv
+
+.\.venv\Scripts\Activate.ps1
+
+uv pip install -r requirements.txt
+
 ### Training Pipeline
 ```bash
 # Run the complete ML training pipeline
 python scripts/run_pipeline.py --input data/raw/Telco-Customer-Churn.csv --target Churn
+
+
+                                RAW DATA
+                                    │
+                                    ▼
+                                PREPROCESSING
+                                    │
+                                    ├── Remove customerID
+                                    ├── Convert Churn → 0/1
+                                    ├── Convert TotalCharges → numeric
+                                    ├── Handle missing values
+                                    │
+                                    ▼
+                                CLEAN DATA
+                                    │
+                                    ▼
+                                VALIDATION
+                                    │
+                                    ├── Is TotalCharges numeric?
+                                    ├── Is tenure >= 0?
+                                    ├── Is MonthlyCharges between 0 and 200?
+                                    ├── Are categories valid?
+                                    ├── Are required columns present?
+                                    └── TotalCharges >= MonthlyCharges for >=95%
+                                    │
+                                    ▼
+                                FEATURE ENGINEERING
+                                    │
+                                    ▼
+                                MODEL TRAINING
+
 
 # Prepare processed data only
 python scripts/prepare_processed_data.py

@@ -1,124 +1,342 @@
-import great_expectations as ge
+import great_expectations as gx
 from typing import Tuple, List
 
 
 def validate_telco_data(df) -> Tuple[bool, List[str]]:
     """
-    Comprehensive data validation for Telco Customer Churn dataset using Great Expectations.
-    
-    This function implements critical data quality checks that must pass before model training.
-    It validates data integrity, business logic constraints, and statistical properties
-    that the ML model expects.
-    
+    Comprehensive data validation for the Telco Customer Churn dataset
+    using Great Expectations 1.5.x.
+
+    Returns:
+        Tuple[bool, List[str]]:
+            - True/False indicating whether all validations passed
+            - List containing the failed expectation types
     """
+
     print("🔍 Starting data validation with Great Expectations...")
-    
-    # Convert pandas DataFrame to Great Expectations Dataset
-    ge_df = ge.dataset.PandasDataset(df)
-    
-    # === SCHEMA VALIDATION - ESSENTIAL COLUMNS ===
+
+    # ============================================================
+    # 1. CREATE GREAT EXPECTATIONS CONTEXT
+    # ============================================================
+
+    context = gx.get_context(mode="ephemeral")
+
+    # ============================================================
+    # 2. CREATE PANDAS DATA SOURCE
+    # ============================================================
+
+    data_source = context.data_sources.add_pandas(
+        name="telco_pandas_source"
+    )
+
+    # Create a Data Asset for the DataFrame
+    data_asset = data_source.add_dataframe_asset(
+        name="telco_dataframe"
+    )
+
+    # Create a batch definition
+    batch_definition = data_asset.add_batch_definition_whole_dataframe(
+        name="telco_batch"
+    )
+
+    # Create the batch using the DataFrame
+    batch = batch_definition.get_batch(
+        batch_parameters={"dataframe": df}
+    )
+
+    # ============================================================
+    # 3. CREATE EXPECTATION SUITE
+    # ============================================================
+
+    expectation_suite = context.suites.add(
+        gx.core.expectation_suite.ExpectationSuite(
+            name="telco_data_validation"
+        )
+    )
+
+    # ============================================================
+    # 4. SCHEMA VALIDATION - ESSENTIAL COLUMNS
+    # ============================================================
+
     print("   📋 Validating schema and required columns...")
-    
-    # Customer identifier must exist (required for business operations)  
-    ge_df.expect_column_to_exist("customerID")
-    ge_df.expect_column_values_to_not_be_null("customerID")
-    
-    # Core demographic features
-    ge_df.expect_column_to_exist("gender") 
-    ge_df.expect_column_to_exist("Partner")
-    ge_df.expect_column_to_exist("Dependents")
-    
-    # Service features (critical for churn analysis)
-    ge_df.expect_column_to_exist("PhoneService")
-    ge_df.expect_column_to_exist("InternetService")
-    ge_df.expect_column_to_exist("Contract")
-    
-    # Financial features (key churn predictors)
-    ge_df.expect_column_to_exist("tenure")
-    ge_df.expect_column_to_exist("MonthlyCharges")
-    ge_df.expect_column_to_exist("TotalCharges")
-    
-    # === BUSINESS LOGIC VALIDATION ===
-    print("   💼 Validating business logic constraints...")
-    
-    # Gender must be one of expected values (data integrity)
-    ge_df.expect_column_values_to_be_in_set("gender", ["Male", "Female"])
-    
-    # Yes/No fields must have valid values
-    ge_df.expect_column_values_to_be_in_set("Partner", ["Yes", "No"])
-    ge_df.expect_column_values_to_be_in_set("Dependents", ["Yes", "No"])
-    ge_df.expect_column_values_to_be_in_set("PhoneService", ["Yes", "No"])
-    
-    # Contract types must be valid (business constraint)
-    ge_df.expect_column_values_to_be_in_set(
-        "Contract", 
-        ["Month-to-month", "One year", "Two year"]
-    )
-    
-    # Internet service types (business constraint)
-    ge_df.expect_column_values_to_be_in_set(
+
+    required_columns = [
+        "gender",
+        "Partner",
+        "Dependents",
+        "PhoneService",
         "InternetService",
-        ["DSL", "Fiber optic", "No"]
+        "Contract",
+        "tenure",
+        "MonthlyCharges",
+        "TotalCharges",
+    ]
+
+    for column in required_columns:
+        expectation_suite.add_expectation(
+            gx.expectations.ExpectColumnToExist(
+                column=column
+            )
+        )
+
+    # Customer identifier must not be null
+    '''
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToNotBeNull(
+            column="customerID"
+        )
     )
-    
-    # === NUMERIC RANGE VALIDATION ===
+    '''
+
+    # ============================================================
+    # 5. BUSINESS LOGIC VALIDATION
+    # ============================================================
+
+    print("   💼 Validating business logic constraints...")
+
+    # Gender
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(
+            column="gender",
+            value_set=["Male", "Female"],
+        )
+    )
+
+    # Yes / No fields
+    for column in [
+        "Partner",
+        "Dependents",
+        "PhoneService",
+    ]:
+        expectation_suite.add_expectation(
+            gx.expectations.ExpectColumnValuesToBeInSet(
+                column=column,
+                value_set=["Yes", "No"],
+            )
+        )
+
+    # Contract types
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(
+            column="Contract",
+            value_set=[
+                "Month-to-month",
+                "One year",
+                "Two year",
+            ],
+        )
+    )
+
+    # Internet service types
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeInSet(
+            column="InternetService",
+            value_set=[
+                "DSL",
+                "Fiber optic",
+                "No",
+            ],
+        )
+    )
+
+    # ============================================================
+    # 6. NUMERIC RANGE VALIDATION
+    # ============================================================
+
     print("   📊 Validating numeric ranges and business constraints...")
-    
-    # Tenure must be non-negative (business logic - can't have negative tenure)
-    ge_df.expect_column_values_to_be_between("tenure", min_value=0)
-    
-    # Monthly charges must be positive (business logic - no free service)
-    ge_df.expect_column_values_to_be_between("MonthlyCharges", min_value=0)
-    
-    # Total charges should be non-negative (business logic)
-    ge_df.expect_column_values_to_be_between("TotalCharges", min_value=0)
-    
-    # === STATISTICAL VALIDATION ===
-    print("   📈 Validating statistical properties...")
-    
-    # Tenure should be reasonable (max ~10 years = 120 months for telecom)
-    ge_df.expect_column_values_to_be_between("tenure", min_value=0, max_value=120)
-    
-    # Monthly charges should be within reasonable business range
-    ge_df.expect_column_values_to_be_between("MonthlyCharges", min_value=0, max_value=200)
-    
-    # No missing values in critical numeric features  
-    ge_df.expect_column_values_to_not_be_null("tenure")
-    ge_df.expect_column_values_to_not_be_null("MonthlyCharges")
-    
-    # === DATA CONSISTENCY CHECKS ===
-    print("   🔗 Validating data consistency...")
-    
-    # Total charges should generally be >= Monthly charges (except for very new customers)
-    # This is a business logic check to catch data entry errors
-    ge_df.expect_column_pair_values_A_to_be_greater_than_B(
-        column_A="TotalCharges",
-        column_B="MonthlyCharges",
-        or_equal=True,
-        mostly=0.95  # Allow 5% exceptions for edge cases
+
+    # Tenure >= 0
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="tenure",
+            min_value=0,
+        )
     )
-    
-    # === RUN VALIDATION SUITE ===
-    print("   ⚙️  Running complete validation suite...")
-    results = ge_df.validate()
-    
-    # === PROCESS RESULTS ===
-    # Extract failed expectations for detailed error reporting
-    failed_expectations = []
-    for r in results["results"]:
-        if not r["success"]:
-            expectation_type = r["expectation_config"]["expectation_type"]
-            failed_expectations.append(expectation_type)
-    
-    # Print validation summary
-    total_checks = len(results["results"])
-    passed_checks = sum(1 for r in results["results"] if r["success"])
-    failed_checks = total_checks - passed_checks
-    
-    if results["success"]:
-        print(f"✅ Data validation PASSED: {passed_checks}/{total_checks} checks successful")
+
+    # MonthlyCharges >= 0
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="MonthlyCharges",
+            min_value=0,
+        )
+    )
+
+    # TotalCharges >= 0
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="TotalCharges",
+            min_value=0,
+        )
+    )
+
+    # ============================================================
+    # 7. STATISTICAL VALIDATION
+    # ============================================================
+
+    print("   📈 Validating statistical properties...")
+
+    # Tenure maximum = 120 months
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="tenure",
+            min_value=0,
+            max_value=120,
+        )
+    )
+
+    # Monthly charges maximum = 200
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToBeBetween(
+            column="MonthlyCharges",
+            min_value=0,
+            max_value=200,
+        )
+    )
+
+    # Critical numeric columns cannot be null
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToNotBeNull(
+            column="tenure"
+        )
+    )
+
+    expectation_suite.add_expectation(
+        gx.expectations.ExpectColumnValuesToNotBeNull(
+            column="MonthlyCharges"
+        )
+    )
+
+    # ============================================================
+    # 8. DATA CONSISTENCY
+    # ============================================================
+
+    print("   🔗 Validating data consistency...")
+
+    # TotalCharges should generally be >= MonthlyCharges.
+    #
+    # We implement the original business rule manually because
+    # the old PandasDataset pair expectation is no longer part
+    # of the API being used here.
+    print(df.dtypes)
+    print(df["TotalCharges"].head(10))
+
+    total_charges = df["TotalCharges"]
+    monthly_charges = df["MonthlyCharges"]
+
+    valid_comparisons = (
+        total_charges.notna()
+        & monthly_charges.notna()
+    )
+
+    if valid_comparisons.sum() > 0:
+
+        comparison_success = (
+            total_charges[valid_comparisons]
+            >= monthly_charges[valid_comparisons]
+        )
+
+        comparison_rate = comparison_success.mean()
+
+        if comparison_rate < 0.95:
+            print(
+                "   ⚠️ TotalCharges >= MonthlyCharges "
+                f"check failed: {comparison_rate:.2%} "
+                "of rows satisfy the condition."
+            )
+
+            pair_check_failed = True
+
+        else:
+            print(
+                "   ✅ TotalCharges >= MonthlyCharges "
+                f"check passed: {comparison_rate:.2%} "
+                "of rows satisfy the condition."
+            )
+
+            pair_check_failed = False
+
     else:
-        print(f"❌ Data validation FAILED: {failed_checks}/{total_checks} checks failed")
-        print(f"   Failed expectations: {failed_expectations}")
-    
-    return results["success"], failed_expectations
+        print(
+            "   ⚠️ Unable to perform TotalCharges/"
+            "MonthlyCharges comparison."
+        )
+
+        pair_check_failed = True
+
+    # ============================================================
+    # 9. VALIDATE EXPECTATION SUITE
+    # ============================================================
+
+    print("   ⚙️ Running complete validation suite...")
+
+    validation_results = batch.validate(
+        expectation_suite
+    )
+
+    # ============================================================
+    # 10. PROCESS RESULTS
+    # ============================================================
+
+    failed_expectations = []
+
+    for result in validation_results.results:
+
+        if not result.success:
+
+            expectation_type = (
+                result.expectation_config.type
+            )
+
+            failed_expectations.append(
+                expectation_type
+            )
+
+    # Add manual pair validation if it failed
+    if pair_check_failed:
+        failed_expectations.append(
+            "TotalCharges >= MonthlyCharges (95% threshold)"
+        )
+
+    total_checks = len(validation_results.results) + 1
+
+    passed_checks = (
+        total_checks
+        - len(failed_expectations)
+    )
+
+    failed_checks = (
+        total_checks
+        - passed_checks
+    )
+
+    # ============================================================
+    # 11. FINAL RESULT
+    # ============================================================
+
+    overall_success = (
+        validation_results.success
+        and not pair_check_failed
+    )
+
+    if overall_success:
+
+        print(
+            f"✅ Data validation PASSED: "
+            f"{passed_checks}/{total_checks} "
+            "checks successful"
+        )
+
+    else:
+
+        print(
+            f"❌ Data validation FAILED: "
+            f"{failed_checks}/{total_checks} "
+            "checks failed"
+        )
+
+        print(
+            f"   Failed expectations: "
+            f"{failed_expectations}"
+        )
+
+    return overall_success, failed_expectations

@@ -1,22 +1,44 @@
-# venvs
-.venv/
+# =========================
+# Python Virtual Environments
+# =========================
+project_env/
 venv/
 env/
+.venv/
 
-# OS cruft
+# =========================
+# OS Files
+# =========================
 .DS_Store
+Thumbs.db
 
-# Python cache
+# =========================
+# Python Cache
+# =========================
 __pycache__/
 *.py[cod]
 *.pyo
 
-# Big artifacts we don't want in git
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+
+# =========================
+# ML Experiment Artifacts
+# =========================
 mlruns/
 artifacts/
+
+# =========================
+# Dataset Files
+# =========================
 data/raw/
 data/processed/
 
-# BUT keep our bundled serving model in the repo
+# =========================
+# Keep Serving Model
+# =========================
 !src/serving/model/
 !src/serving/model/**

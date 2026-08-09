@@ -33,6 +33,9 @@ def preprocess_data(df: pd.DataFrame, target_col: str = "Churn") -> pd.DataFrame
     # simple NA strategy:
     # - numeric: fill with 0
     # - others: leave for encoders to handle (get_dummies ignores NaN safely)
+    # Missing numeric values are replaced with 0.
+    # For this project, this is used as the chosen
+    # baseline missing-value strategy.
     num_cols = df.select_dtypes(include=["number"]).columns
     df[num_cols] = df[num_cols].fillna(0)
 
