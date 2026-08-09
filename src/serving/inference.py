@@ -50,14 +50,17 @@ if os.path.exists(MODEL_DIR):
 if model is None:
     try:
         import glob
-        local_model_paths = glob.glob("./mlruns/*/*/artifacts/model")
+        local_model_paths = (
+            glob.glob("./src/serving/model/**/artifacts/model", recursive=True) +
+            glob.glob("./mlruns/**/artifacts/model", recursive=True)
+        )
         if local_model_paths:
             latest_model = max(local_model_paths, key=os.path.getmtime)
             model = mlflow.pyfunc.load_model(latest_model)
             MODEL_DIR = latest_model
             print(f"✅ Fallback: Loaded model from {latest_model}")
         else:
-            raise Exception("No model found in local mlruns")
+            raise Exception("No model found in src/serving/model or mlruns")
     except Exception as fallback_error:
         raise Exception(f"Failed to load model: {fallback_error}")
 

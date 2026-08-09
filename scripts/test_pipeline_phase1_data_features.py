@@ -11,8 +11,11 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.append(os.path.abspath("src"))
 
+# pyrefly: ignore [missing-import]
 from data.load_data import load_data
+# pyrefly: ignore [missing-import]
 from data.preprocess import preprocess_data
+# pyrefly: ignore [missing-import]
 from features.build_features import build_features
 
 # === CONFIG ===
