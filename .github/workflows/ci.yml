@@ -60,7 +60,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: tamilnilavank23/telco-fastapi
+          images: tamilnilavank/telco-fastapi
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=short
