@@ -37,6 +37,11 @@ artifacts/
 data/processed/
 
 # =========================
+# Documentation & Archive
+# =========================
+docs/
+
+# =========================
 # Keep Serving Model
 # =========================
 !src/serving/model/
