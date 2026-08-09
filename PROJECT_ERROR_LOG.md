@@ -395,7 +395,250 @@ Preprocessing makes data usable; validation checks whether the cleaned data is a
 
 ---
 
+## ERR-011 — XGBoost Rejected Categorical `object` Columns
 
+**Date:** 2026-08-09  
+**Stage:** Feature Engineering / Modeling  
+**Severity:** 🔴 High  
+**Status:** ✅ Resolved  
+
+### What I Was Trying To Do
+Train XGBoost model in Phase 2 modeling script (`scripts/test_pipeline_phase2_modeling.py`).
+
+### Error
+```text
+ValueError: DataFrame.dtypes for data must be int, float, bool or category.
+  Unsafe target type for target column 'Churn'
+```
+
+### Root Cause
+1. `Churn` target column was string (`'No'`, `'Yes'`) instead of numeric `0`/`1`.
+2. Categorical features were raw strings (`object` dtype) instead of one-hot encoded numeric features or boolean columns converted to `int`.
+
+### Solution
+Applied feature engineering pipeline `build_features` to encode categorical variables into numeric columns and mapped target `Churn` to `0`/`1`:
+```python
+if df["Churn"].dtype == "object":
+    df["Churn"] = df["Churn"].str.strip().map({"No": 0, "Yes": 1})
+
+df = build_features(df, target_col="Churn")
+
+bool_cols = df.select_dtypes(include=["bool"]).columns
+if len(bool_cols) > 0:
+    df[bool_cols] = df[bool_cols].astype(int)
+```
+
+### What I Learned
+XGBoost requires all input features and target labels to be numeric (`int`, `float`) or explicitly converted boolean/category dtypes.
+
+### How To Avoid This
+Always pass features through `build_features()` and explicitly convert boolean/categorical columns before model training.
+
+---
+
+## ERR-012 — Cannot find module `xgboost` (Python Interpreter Mismatch)
+
+**Date:** 2026-08-09  
+**Stage:** Local Execution / IDE Setup  
+**Severity:** 🟡 Medium  
+**Status:** ✅ Resolved  
+
+### What I Was Trying To Do
+Run `python scripts/test_pipeline_phase2_modeling.py` from VS Code / shell.
+
+### Error
+```text
+Cannot find module `xgboost`
+Looked in these locations:
+Site package path queried from interpreter: ["C:\Users\Tamil\AppData\Local\Programs\Python\Python311\..."]
+```
+
+### Root Cause
+VS Code / Pylance was configured to use the global system Python interpreter (`C:\Users\Tamil\AppData\Local\Programs\Python\Python311`), which did not have `xgboost` installed. `xgboost` (v3.0.3) was installed inside `project_env`.
+
+### Solution
+Created `.vscode/settings.json` to lock the workspace interpreter path:
+```json
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/project_env/Scripts/python.exe",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ]
+}
+```
+
+### What I Learned
+IDE analysis servers and terminal execution must be pointed explicitly to the active virtual environment (`project_env`).
+
+### How To Avoid This
+Always create a workspace `.vscode/settings.json` file when initializing Python virtual environments.
+
+---
+
+## ERR-013 — Web Browser Cannot Load `http://0.0.0.0:8000/`
+
+**Date:** 2026-08-09  
+**Stage:** Web Application Serving  
+**Severity:** 🟡 Medium  
+**Status:** ✅ Resolved  
+
+### What I Was Trying To Do
+Access the FastAPI + Gradio application in a Windows web browser after running `python -m uvicorn src.app.main:app --host 0.0.0.0 --port 8000`.
+
+### Error
+```text
+The webpage at http://0.0.0.0:8000/ might be temporarily down or it may have moved permanently to a new web address.
+```
+
+### Root Cause
+`0.0.0.0` is a wildcard bind address for network interfaces, not a navigable IP address for Windows web browsers. Additionally, `/` returned raw JSON (`{"status": "ok"}`) instead of opening the UI.
+
+### Solution
+1. Configured local Uvicorn execution to bind to `127.0.0.1`:
+```powershell
+python -m uvicorn src.app.main:app --host 127.0.0.1 --port 8000
+```
+2. Added `RedirectResponse(url="/ui")` at the `/` endpoint in `src/app/main.py` so root browser requests automatically load the Gradio interface.
+
+### What I Learned
+Use `127.0.0.1` or `localhost` for local Windows browser access. Reserve `0.0.0.0` for Docker container execution.
+
+### How To Avoid This
+Redirect root `/` routes to interactive web UIs `/ui` and maintain `/health` for load balancers.
+
+---
+
+## ERR-014 — Matplotlib Font Cache Lock Permission Denied on Windows
+
+**Date:** 2026-08-09  
+**Stage:** Serving / Gradio Integration  
+**Severity:** 🟡 Medium  
+**Status:** ✅ Resolved  
+
+### What I Was Trying To Do
+Serve the Gradio UI using Uvicorn.
+
+### Error
+```text
+Could not save font_manager cache [Errno 13] Permission denied: 'C:\Users\Tamil\.matplotlib\fontlist-v390.json.matplotlib-lock'
+```
+
+### Root Cause
+Matplotlib (imported internally by Gradio) tried to write a font cache lock file to the user home directory `C:\Users\Tamil\.matplotlib` while a concurrent process held a file lock.
+
+### Solution
+Set `MPLCONFIGDIR` to a system temporary directory before importing Gradio/Matplotlib at the top of `main.py` and `app.py`:
+```python
+import os
+import tempfile
+
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "matplotlib"))
+```
+
+### What I Learned
+Matplotlib requires a dedicated writable configuration directory in multi-process or web serving environments.
+
+### How To Avoid This
+Set `MPLCONFIGDIR` to a temp directory at the entry point of all web applications.
+
+---
+
+## ERR-015 — `ModuleNotFoundError: No module named 'gradio_client.serializing'` in GitHub Actions
+
+**Date:** 2026-08-09  
+**Stage:** CI/CD Workflow  
+**Severity:** 🔴 High  
+**Status:** ✅ Resolved  
+
+### What I Was Trying To Do
+Run automated tests in GitHub Actions CI workflow using `pip install -r requirements.txt`.
+
+### Error
+```text
+File ".../site-packages/gradio/components/annotated_image.py", line 9, in <module>
+    from gradio_client.serializing import JSONSerializable
+ModuleNotFoundError: No module named 'gradio_client.serializing'
+```
+
+### Root Cause
+`requirements.txt` had `gradio` unpinned and missing `gradio_client`, causing `pip` in the GitHub Actions Linux runner to install mismatched versions of Gradio and Gradio Client.
+
+### Solution
+Pinned exact compatible versions in `requirements.txt`:
+```text
+gradio==6.22.0
+gradio_client==2.6.0
+```
+
+### What I Learned
+High-level framework libraries like Gradio require their companion libraries (`gradio_client`) to be pinned together.
+
+### How To Avoid This
+Never leave core framework requirements unpinned in production `requirements.txt`.
+
+---
+
+## ERR-016 — `Failed to load model: No model found in local mlruns` in GitHub Actions
+
+**Date:** 2026-08-09  
+**Stage:** CI/CD / Serving  
+**Severity:** 🔴 High  
+**Status:** ✅ Resolved  
+
+### What I Was Trying To Do
+Execute `scripts/test_fastapi.py` during the `test` stage of GitHub Actions.
+
+### Error
+```text
+Exception: Failed to load model: No model found in local mlruns
+```
+
+### Root Cause
+`mlruns/` is in `.gitignore`, so it does not exist on a fresh GitHub runner checkout. `inference.py` only searched `./mlruns/*/*/artifacts/model` and did not search `src/serving/model/` (which is tracked in Git).
+
+### Solution
+Updated `src/serving/inference.py` to search both Git-tracked production model paths and local `mlruns`:
+```python
+local_model_paths = (
+    glob.glob("./src/serving/model/**/artifacts/model", recursive=True) +
+    glob.glob("./mlruns/**/artifacts/model", recursive=True)
+)
+```
+
+### What I Learned
+Inference loading logic must be able to discover model artifacts regardless of whether the environment is Docker (`/app/model`), Git checkout (`src/serving/model`), or local runs (`mlruns`).
+
+### How To Avoid This
+Always test fallback artifact paths against clean repository checkouts.
+
+---
+
+## ERR-017 — Docker Hub Push Access Denied (`insufficient_scope` / Namespace Mismatch)
+
+**Date:** 2026-08-09  
+**Stage:** Docker Build & Push / CI/CD Deployment  
+**Severity:** 🔴 High  
+**Status:** ✅ Resolved  
+
+### What I Was Trying To Do
+Push built Docker image to Docker Hub from GitHub Actions (`docker/build-push-action@v5`).
+
+### Error
+```text
+ERROR: failed to solve: failed to push ***23/telco-fastapi:latest: push access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+```
+
+### Root Cause
+The GitHub Actions workflow specified `tamilnilavank23/telco-fastapi`, but the authenticating Docker Hub user account handle was `tamilnilavank`. Docker Hub denied push permissions to a non-owned namespace.
+
+### Solution
+Updated `.github/workflows/ci.yml` image repository tag to `tamilnilavank/telco-fastapi` and set `DOCKERHUB_USERNAME` secret to `tamilnilavank` with Read & Write access token.
+
+### What I Learned
+Docker Hub image repository namespaces must match the exact Docker Hub account handle associated with the access token.
+
+### How To Avoid This
+Verify Docker Hub account handle before defining image tags in CI/CD manifests.
 
 ---
 
@@ -495,7 +738,13 @@ Log
 | ERR-008 | Great Expectations API mismatch | Validation | 🔴 High | ✅ Resolved |
 | ERR-009 | Python cannot find `utils` | Project Structure | 🟡 Medium | ✅ Resolved |
 | ERR-010 | String vs float comparison | Preprocessing / Validation | 🔴 High | ✅ Resolved |
-| ERR-011 | XGBoost rejected categorical `object` columns | Feature Engineering / Modeling | 🔴 High | 🟡 Investigating |
+| ERR-011 | XGBoost rejected categorical `object` columns | Feature Engineering / Modeling | 🔴 High | ✅ Resolved |
+| ERR-012 | Cannot find module `xgboost` (Python interpreter mismatch) | IDE / Execution | 🟡 Medium | ✅ Resolved |
+| ERR-013 | Browser error loading `http://0.0.0.0:8000/` | Serving / Web UI | 🟡 Medium | ✅ Resolved |
+| ERR-014 | Matplotlib font cache lock permission denied on Windows | Serving / Gradio | 🟡 Medium | ✅ Resolved |
+| ERR-015 | `ModuleNotFoundError: No module named 'gradio_client.serializing'` in CI | CI/CD / Dependencies | 🔴 High | ✅ Resolved |
+| ERR-016 | `Failed to load model: No model found in local mlruns` in CI | CI/CD / Inference | 🔴 High | ✅ Resolved |
+| ERR-017 | Docker Hub Push Access Denied (`insufficient_scope` / namespace mismatch) | Docker / CI/CD | 🔴 High | ✅ Resolved |
 
 ---
 
@@ -542,7 +791,7 @@ Continue adding new problems below this line.
 
 ---
 
-## ERR-XXX — [Short Problem Name]
+## ERR-018 — [Short Problem Name]
 
 **Date:**  
 **Stage:**  
