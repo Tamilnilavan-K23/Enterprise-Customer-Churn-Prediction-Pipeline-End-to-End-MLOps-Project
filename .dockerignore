@@ -1,2 +1,13 @@
-data/
+.git
+.github
+.vscode
+project_env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.DS_Store
+PROJECT_ERROR_LOG.md
+docs/archive/
 notebooks/

@@ -1,19 +1,9 @@
-import os
-import sys
 import pandas as pd
 from sklearn.model_selection import train_test_split
 # pyrefly: ignore [missing-import]
 from xgboost import XGBClassifier
 # pyrefly: ignore [missing-import]
 import optuna
-
-# Fix Windows console UTF-8 output encoding if supported
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
-
-# Make src importable
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from src.features.build_features import build_features
 
 print("=== Phase 2: Modeling with XGBoost ===")
 
@@ -22,14 +12,6 @@ df = pd.read_csv("data/processed/telco_churn_processed.csv")
 # target must be numeric 0/1
 if df["Churn"].dtype == "object":
     df["Churn"] = df["Churn"].str.strip().map({"No": 0, "Yes": 1})
-
-# Feature engineering to encode categorical columns into numeric features
-df = build_features(df, target_col="Churn")
-
-# Convert boolean columns to integer for XGBoost compatibility
-bool_cols = df.select_dtypes(include=["bool"]).columns
-if len(bool_cols) > 0:
-    df[bool_cols] = df[bool_cols].astype(int)
 
 assert df["Churn"].isna().sum() == 0, "Churn has NaNs"
 assert set(df["Churn"].unique()) <= {0, 1}, "Churn not 0/1"
@@ -66,7 +48,6 @@ def objective(trial):
     from sklearn.metrics import recall_score
     return recall_score(y_test, y_pred, pos_label=1)
 
-optuna.logging.set_verbosity(optuna.logging.WARNING)
 study = optuna.create_study(direction="maximize")
 study.optimize(objective, n_trials=30)
 print("Best Params:", study.best_params)

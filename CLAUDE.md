@@ -67,10 +67,12 @@ python scripts/test_fastapi.py
 ### Local Development
 ```bash
 # Run the FastAPI + Gradio application locally
-python -m uvicorn src.app.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn src.app.main:app --host 127.0.0.1 --port 8000
 
-# Alternative app entry point
-python -m uvicorn src.app.app:app --host 0.0.0.0 --port 8000
+# Open in browser:
+# - API Health Check: http://127.0.0.1:8000/
+# - Interactive Swagger Docs: http://127.0.0.1:8000/docs
+# - Gradio Web Interface: http://127.0.0.1:8000/ui
 ```
 
 ### Docker

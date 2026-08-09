@@ -11,7 +11,14 @@ Architecture:
 - Pydantic: Data validation and automatic API documentation
 """
 
+import os
+import tempfile
+
+# Prevent Matplotlib font cache lock permission errors on Windows
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "matplotlib"))
+
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 import gradio as gr
 from src.serving.inference import predict  # Core ML inference logic
@@ -23,10 +30,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# === HEALTH CHECK ENDPOINT ===
-# CRITICAL: Required for AWS Application Load Balancer health checks
-@app.get("/")
+# === HEALTH CHECK & REDIRECT ENDPOINTS ===
+@app.get("/", include_in_schema=False)
 def root():
+    """
+    Redirect root URL to Gradio Web UI (/ui).
+    """
+    return RedirectResponse(url="/ui")
+
+@app.get("/health")
+def health():
     """
     Health check endpoint for monitoring and load balancer health checks.
     """

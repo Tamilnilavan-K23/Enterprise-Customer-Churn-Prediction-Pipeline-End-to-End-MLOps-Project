@@ -1,8 +1,14 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-import gradio as gr
 import os
 import sys
+import tempfile
+
+# Prevent Matplotlib font cache lock permission errors on Windows
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "matplotlib"))
+
+from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
+import gradio as gr
 
 # Ensure we can import from src/serving when running "uvicorn src.app.app:app"
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -11,8 +17,12 @@ from serving.inference import predict  # our single source of truth for inferenc
 
 app = FastAPI()
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def root():
+    return RedirectResponse(url="/ui")
+
+@app.get("/health")
+def health():
     return {"status": "ok"}
 
 # Request schema (same fields you collect in the UI)

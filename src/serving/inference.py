@@ -26,24 +26,29 @@ Production Deployment:
 
 import os
 import pandas as pd
+# pyrefly: ignore [missing-import]
 import mlflow
+# Handle stdout encoding on Windows
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 # === MODEL LOADING CONFIGURATION ===
 # IMPORTANT: This path is set during Docker container build
 # In development: uses local MLflow artifacts
 # In production: uses model copied to container at build time
 MODEL_DIR = "/app/model"
+model = None
 
-try:
-    # Load the trained XGBoost model in MLflow pyfunc format
-    # This ensures compatibility regardless of the underlying ML library
-    model = mlflow.pyfunc.load_model(MODEL_DIR)
-    print(f"✅ Model loaded successfully from {MODEL_DIR}")
-except Exception as e:
-    print(f"❌ Failed to load model from {MODEL_DIR}: {e}")
-    # Fallback for local development (OPTIONAL)
+if os.path.exists(MODEL_DIR):
     try:
-        # Try loading from local MLflow tracking
+        model = mlflow.pyfunc.load_model(MODEL_DIR)
+        print(f"✅ Model loaded successfully from {MODEL_DIR}")
+    except Exception as e:
+        print(f"Notice: Model load from {MODEL_DIR} skipped: {e}")
+
+if model is None:
+    try:
         import glob
         local_model_paths = glob.glob("./mlruns/*/*/artifacts/model")
         if local_model_paths:
@@ -54,16 +59,30 @@ except Exception as e:
         else:
             raise Exception("No model found in local mlruns")
     except Exception as fallback_error:
-        raise Exception(f"Failed to load model: {e}. Fallback failed: {fallback_error}")
+        raise Exception(f"Failed to load model: {fallback_error}")
 
 # === FEATURE SCHEMA LOADING ===
 # CRITICAL: Load the exact feature column order used during training
 # This ensures the model receives features in the expected order
+FEATURE_COLS = []
+feature_txt = os.path.join(MODEL_DIR, "feature_columns.txt")
+feature_txt_parent = os.path.join(os.path.dirname(MODEL_DIR), "feature_columns.txt")
+feature_json = os.path.join("artifacts", "feature_columns.json")
+
 try:
-    feature_file = os.path.join(MODEL_DIR, "feature_columns.txt")
-    with open(feature_file) as f:
-        FEATURE_COLS = [ln.strip() for ln in f if ln.strip()]
-    print(f"✅ Loaded {len(FEATURE_COLS)} feature columns from training")
+    if os.path.exists(feature_txt):
+        with open(feature_txt) as f:
+            FEATURE_COLS = [ln.strip() for ln in f if ln.strip()]
+    elif os.path.exists(feature_txt_parent):
+        with open(feature_txt_parent) as f:
+            FEATURE_COLS = [ln.strip() for ln in f if ln.strip()]
+    elif os.path.exists(feature_json):
+        import json
+        with open(feature_json) as f:
+            FEATURE_COLS = json.load(f)
+    else:
+        raise FileNotFoundError("Could not locate feature_columns file.")
+    print(f"✅ Loaded {len(FEATURE_COLS)} feature columns from schema")
 except Exception as e:
     raise Exception(f"Failed to load feature columns: {e}")
 

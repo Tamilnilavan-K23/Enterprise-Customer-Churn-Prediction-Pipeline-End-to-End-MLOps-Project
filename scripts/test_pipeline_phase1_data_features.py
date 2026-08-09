@@ -4,6 +4,11 @@ import pandas as pd
 
 # Make sure Python can find your src package
 import sys
+
+# Fix Windows/console UTF-8 output encoding if supported
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 sys.path.append(os.path.abspath("src"))
 
 from data.load_data import load_data
